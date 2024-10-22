@@ -9,9 +9,9 @@ EditorBuildSettings:
     path: Assets/Scenes/CharacterSelect.unity
     guid: 4d5da57ea64d7c348a381a1eb7474034
   - enabled: 1
-    path: Assets/Scenes/Basketball_Court.unity
-    guid: 2cda990e2423bbf4892e6590ba056729
-  - enabled: 1
     path: Assets/Scenes/MainMenu.unity
     guid: 11d908e9bbf0d3e448c7701f8337a4b0
+  - enabled: 1
+    path: Assets/Scenes/Basketball_Court.unity
+    guid: 90c208851cec1b94094943f12d7b6526
   m_configObjects: {}

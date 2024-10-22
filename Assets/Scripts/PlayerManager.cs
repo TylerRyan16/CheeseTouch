@@ -18,12 +18,19 @@ public class PlayerManager : MonoBehaviour
     private float accelerationVelocity = 0.0f;
     public float sprintMultiplier = 1.5f;
 
+    // gravity variables
+    public bool isJumping = false;
+    public float gravity;
+    public float jumpPower = 2f;
+    public float smoothSpeed = 2f;
+
     // stamina variables
     public float staminaDrainRate = 15f;
     public float staminaRegenRate = 3f;
     private float maxStamina;
 
     // max health for calculating health bar percentages
+    public float healthRegenRate = 3f;
     private float maxHealth;
 
     // what direction we are facing
@@ -121,16 +128,25 @@ public class PlayerManager : MonoBehaviour
             TakeDamage(5);
         }
 
+        if (Input.GetKeyDown(KeyCode.Space) && !isJumping)
+        {
+            Jump();
+        }
+
         if (isMoving && audioManager.CanPlayStep())
         {
-            Debug.Log("Playing Footstep");  // Add this line
             audioManager.PlayFootstep(isRunning, isOnGrass, transform);
+        }
+
+        if (health < maxHealth)
+        {
+            RegenerateHealth();
         }
     }
 
     public void HandleMovement()
     {
-        // check if sprinting
+        // check if sprinting, create target speed to reach
         float targetSpeed = speed;
         if (Input.GetKey(KeyCode.LeftShift) && stamina > 0)
         {
@@ -138,6 +154,7 @@ public class PlayerManager : MonoBehaviour
             targetSpeed = speed * sprintMultiplier;
             isRunning = true;
             DecreaseStamina();
+            // trigger running animation
             animator.SetBool("isRunning", isRunning);
         } else
         {
@@ -145,6 +162,7 @@ public class PlayerManager : MonoBehaviour
             {
                 isRunning = false;
                 RegenerateStamina();
+                // trigger walking animation
                 animator.SetBool("isRunning", isRunning);
 
             }
@@ -164,14 +182,14 @@ public class PlayerManager : MonoBehaviour
         // set is moving
         isMoving = moveX != 0 || moveY != 0;
 
-        // update the animator parameter
+        // play walking animation
         animator.SetBool("isWalking", isMoving);
-
 
         // increase current player position based on move direction & speed
         transform.position += moveDirection * (currentSpeed * 2) * Time.deltaTime;
 
-        // clamp player on screen
+        // clamp player on screen (vertically for now)
+        // TO DO - CLAMP HORIZONTALLY
         float clampedY = Mathf.Clamp(transform.position.y, botYValue, topYValue);
         transform.position = new Vector3(transform.position.x, clampedY, transform.position.z);
 
@@ -183,6 +201,56 @@ public class PlayerManager : MonoBehaviour
         {
             mySpriteRenderer.flipX = false;
         }
+    }
+
+    public void Jump()
+    {
+        isJumping = true;
+        StartCoroutine(JumpCoroutine());
+    }
+
+    private IEnumerator JumpCoroutine()
+    {
+        // save start position
+        Vector2 startJumpPosition = new Vector2(transform.position.x, transform.position.y);
+
+        // define the peak of the jump
+        Vector2 peakPosition = new Vector2(transform.position.x, transform.position.y + 2);
+
+        // define jump times
+        float jumpTime = 0.2f;
+        float elapsedTime = 0;
+
+        while (elapsedTime < jumpTime)
+        {
+            // lerp the player's position from start to final position based on elapsed time
+            transform.position = Vector3.Lerp(startJumpPosition, peakPosition, (elapsedTime / jumpTime));
+
+            // increase elapsed time by the time passed in this frame
+            elapsedTime += Time.deltaTime;
+
+            yield return null;
+        }
+
+        // reset elapsed time
+        elapsedTime = 0;
+
+        // move player back down to the start position
+        while (elapsedTime < jumpTime)
+        {
+            // lerp the player's position from peak position back to start position
+            transform.position = Vector3.Lerp(peakPosition, startJumpPosition, (elapsedTime / jumpTime));
+
+            // increase elapsed time by the time passed in this frame
+            elapsedTime += Time.deltaTime;
+
+            yield return null;
+        }
+
+        // move player back to start position
+        transform.position = startJumpPosition;
+
+        isJumping = false;
     }
 
     public Vector3 GetPlayerLocation()
@@ -222,10 +290,12 @@ public class PlayerManager : MonoBehaviour
         staminaBar.fillAmount = stamina / maxStamina;
     }
 
-    public void Heal(float healingAmount)
+    public void RegenerateHealth()
     {
-        health += healingAmount;
+        health += healthRegenRate * Time.deltaTime;
         health = Mathf.Clamp(health, 0, maxHealth);
+
+        // update health bar
         healthBar.fillAmount = health / maxHealth;
     }
 }
