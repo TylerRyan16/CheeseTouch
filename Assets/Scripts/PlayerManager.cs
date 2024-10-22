@@ -28,13 +28,24 @@ public class PlayerManager : MonoBehaviour
 
     // what direction we are facing
     private Vector3 moveDirection;
-    
+
+    // audio variables
+    public AudioManager audioManager;
+    public bool isOnGrass = true;
+
+    // to send to audio manager
+    private bool isRunning = false;
+    private bool isMoving = false;
+
     // map bounds top & bottom
     private float topYValue = -1.15f;
     private float botYValue = -43.0f;
 
     // reference to sprite renderer for later
     private SpriteRenderer mySpriteRenderer;
+
+    // animation variables
+    private Animator animator;
 
     // reference to player sprite
     private Sprite playerSprite;
@@ -52,8 +63,12 @@ public class PlayerManager : MonoBehaviour
     public PauseMenu pauseMenu;
 
 
+
     private void Start()
     {
+        // get animator
+        animator = GetComponent<Animator>();
+
         // find character selector
         characterSelector = FindObjectOfType<CharacterSelector>();
 
@@ -105,6 +120,12 @@ public class PlayerManager : MonoBehaviour
         {
             TakeDamage(5);
         }
+
+        if (isMoving && audioManager.CanPlayStep())
+        {
+            Debug.Log("Playing Footstep");  // Add this line
+            audioManager.PlayFootstep(isRunning, isOnGrass, transform);
+        }
     }
 
     public void HandleMovement()
@@ -115,12 +136,17 @@ public class PlayerManager : MonoBehaviour
         {
             // increase target speed while sprinting
             targetSpeed = speed * sprintMultiplier;
+            isRunning = true;
             DecreaseStamina();
+            animator.SetBool("isRunning", isRunning);
         } else
         {
             if (stamina < maxStamina)
             {
+                isRunning = false;
                 RegenerateStamina();
+                animator.SetBool("isRunning", isRunning);
+
             }
         }
 
@@ -134,6 +160,13 @@ public class PlayerManager : MonoBehaviour
         // same with y
         float moveY = Input.GetAxisRaw("Vertical");
         moveDirection = new Vector3(moveX, moveY, 0).normalized;
+
+        // set is moving
+        isMoving = moveX != 0 || moveY != 0;
+
+        // update the animator parameter
+        animator.SetBool("isWalking", isMoving);
+
 
         // increase current player position based on move direction & speed
         transform.position += moveDirection * (currentSpeed * 2) * Time.deltaTime;
