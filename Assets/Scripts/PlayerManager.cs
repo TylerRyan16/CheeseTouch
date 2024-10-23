@@ -214,17 +214,25 @@ public class PlayerManager : MonoBehaviour
         // save start position
         Vector2 startJumpPosition = new Vector2(transform.position.x, transform.position.y);
 
+        // save horizontal movement data
+        Vector3 savedMoveDirection = moveDirection;
+        float savedSpeed = currentSpeed;
+        
         // define the peak of the jump
-        Vector2 peakPosition = new Vector2(transform.position.x, transform.position.y + 2);
+        Vector2 peakPosition = new Vector2(transform.position.x, transform.position.y + jumpPower);
 
         // define jump times
         float jumpTime = 0.2f;
         float elapsedTime = 0;
 
+        float horizontalMultiplier = 2.2f;
+
         while (elapsedTime < jumpTime)
         {
             // lerp the player's position from start to final position based on elapsed time
-            transform.position = Vector3.Lerp(startJumpPosition, peakPosition, (elapsedTime / jumpTime));
+            transform.position = new Vector3(startJumpPosition.x + (savedMoveDirection.x * savedSpeed * elapsedTime * horizontalMultiplier),
+                                          Mathf.Lerp(startJumpPosition.y, peakPosition.y, (elapsedTime / jumpTime)),
+                                          transform.position.z);
 
             // increase elapsed time by the time passed in this frame
             elapsedTime += Time.deltaTime;
@@ -239,7 +247,9 @@ public class PlayerManager : MonoBehaviour
         while (elapsedTime < jumpTime)
         {
             // lerp the player's position from peak position back to start position
-            transform.position = Vector3.Lerp(peakPosition, startJumpPosition, (elapsedTime / jumpTime));
+            transform.position = new Vector3(startJumpPosition.x + (savedMoveDirection.x * savedSpeed * (elapsedTime + jumpTime) * horizontalMultiplier),
+                                          Mathf.Lerp(peakPosition.y, startJumpPosition.y, (elapsedTime / jumpTime)),
+                                          transform.position.z);
 
             // increase elapsed time by the time passed in this frame
             elapsedTime += Time.deltaTime;
@@ -248,7 +258,9 @@ public class PlayerManager : MonoBehaviour
         }
 
         // move player back to start position
-        transform.position = startJumpPosition;
+        transform.position = new Vector3(startJumpPosition.x + (savedMoveDirection.x * savedSpeed * 2 * jumpTime * horizontalMultiplier),
+                                      startJumpPosition.y,
+                                      transform.position.z);
 
         isJumping = false;
     }
