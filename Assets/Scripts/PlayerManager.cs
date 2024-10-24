@@ -30,7 +30,7 @@ public class PlayerManager : MonoBehaviour
     private float maxStamina;
 
     // max health for calculating health bar percentages
-    public float healthRegenRate = 3f;
+    public float healthRegenRate = 0f;
     private float maxHealth;
 
     // what direction we are facing
@@ -69,10 +69,18 @@ public class PlayerManager : MonoBehaviour
     // if game is paused
     public PauseMenu pauseMenu;
 
+    // attack variables
+    public GameObject attackObject;
+    private BoxCollider2D attackArea;
+    public float attackCooldown = 1.0f;
+    public bool canAttack = true;
 
 
     private void Start()
     {
+        // get attack box collider
+        attackArea = GetComponent<BoxCollider2D>();
+
         // get animator
         animator = GetComponent<Animator>();
 
@@ -126,6 +134,12 @@ public class PlayerManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F))
         {
             TakeDamage(5);
+        }
+
+        // attack
+        if (Input.GetMouseButtonDown(0) && canAttack)
+        {
+            StartCoroutine(Attack());
         }
 
         if (Input.GetKeyDown(KeyCode.Space) && !isJumping)
@@ -270,6 +284,38 @@ public class PlayerManager : MonoBehaviour
         return transform.position;
     }
 
+    private IEnumerator Attack()
+    {
+        // enable the attack area
+        attackObject.SetActive(true);
+        canAttack = false;
+
+        // check for any enemies within attack area
+        Collider2D[] hitEnemies = Physics2D.OverlapBoxAll(attackArea.bounds.center, attackArea.bounds.size, 0f);
+
+        // iterate through all hit enemies and apply damage
+        foreach (Collider2D enemyCollider in hitEnemies)
+        {
+            if (enemyCollider.CompareTag("Enemy"))
+            {
+                // get enemy script to apply damage
+                Enemy enemy = enemyCollider.GetComponent<Enemy>();
+
+                if (enemy != null)
+                {
+                    enemy.TakeDamage();
+                }
+            }
+        }
+
+
+        // wait for 0.2 seconds
+        yield return new WaitForSeconds(0.2f);
+        attackObject.SetActive(false);
+
+        canAttack = true;
+    }
+
     public void TakeDamage(float damage)
     {
         // decrease health
@@ -280,6 +326,50 @@ public class PlayerManager : MonoBehaviour
 
         // update health bar fill based on percentage
         healthBar.fillAmount = health / maxHealth;
+
+        Knockback();
+    }
+
+    public void Knockback()
+    {
+        if (IsFacingRight())
+        {
+            StartCoroutine(KnockbackRoutine(-2));
+            
+        } else
+        {
+            StartCoroutine(KnockbackRoutine(2));
+        }
+    }
+
+    private IEnumerator KnockbackRoutine(float knockbackDistance)
+    {
+        // knockback duration
+        float duration = 0.5f;
+        float elapsedTime = 0;
+        Vector2 originalPosition = transform.position;
+        Vector2 targetPosition = new Vector3(transform.position.x + knockbackDistance, transform.position.y);
+
+        // wait until knockback duration is over
+        while (elapsedTime < duration)
+        {
+            // interpolate from original pos to end pos over time
+            transform.position = Vector2.Lerp(originalPosition, targetPosition, (elapsedTime / duration));
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        transform.position = targetPosition; // Ensure final position is exact
+
+    }
+
+    public bool IsFacingRight()
+    {
+        return !mySpriteRenderer.flipX;
+    }
+    public float GetDamage()
+    {
+        return attack;
     }
 
     // lower stamina while sprinting
