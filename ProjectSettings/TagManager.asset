@@ -46,11 +46,11 @@ TagManager:
   - name: Background
     uniqueID: 1238669799
     locked: 0
-  - name: Player
-    uniqueID: 2026645331
-    locked: 0
   - name: Enemy
     uniqueID: 1549394725
+    locked: 0
+  - name: Player
+    uniqueID: 2026645331
     locked: 0
   - name: Fence
     uniqueID: 1171981531

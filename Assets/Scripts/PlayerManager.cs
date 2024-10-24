@@ -6,6 +6,19 @@ using UnityEngine.UI;
 
 public class PlayerManager : MonoBehaviour
 {
+
+    // references
+    private SpriteRenderer mySpriteRenderer;
+    private Animator animator;
+    private Sprite playerSprite;
+    private CharacterSelector characterSelector;
+    public Image healthBar;
+    public Image staminaBar;
+    public PauseMenu pauseMenu;
+    public AudioManager audioManager;
+    public GameObject attackObject;
+    private BoxCollider2D attackArea;
+
     // player stats
     public float health;
     public float speed;
@@ -18,29 +31,27 @@ public class PlayerManager : MonoBehaviour
     private float accelerationVelocity = 0.0f;
     public float sprintMultiplier = 1.5f;
 
-    // gravity variables
-    public bool isJumping = false;
-    public float gravity;
-    public float jumpPower = 2f;
-    public float smoothSpeed = 2f;
+    // max health for calculating health bar percentages
+    public float healthRegenRate = 0f;
+    private float maxHealth;
 
     // stamina variables
     public float staminaDrainRate = 15f;
     public float staminaRegenRate = 3f;
     private float maxStamina;
 
-    // max health for calculating health bar percentages
-    public float healthRegenRate = 3f;
-    private float maxHealth;
+    // gravity / jump variables
+    public bool isJumping = false;
+    public float gravity;
+    public float jumpPower = 2f;
+    public float smoothSpeed = 2f;
+
 
     // what direction we are facing
     private Vector3 moveDirection;
 
-    // audio variables
-    public AudioManager audioManager;
+    // audio
     public bool isOnGrass = true;
-
-    // to send to audio manager
     private bool isRunning = false;
     private bool isMoving = false;
 
@@ -48,31 +59,19 @@ public class PlayerManager : MonoBehaviour
     private float topYValue = -1.15f;
     private float botYValue = -43.0f;
 
-    // reference to sprite renderer for later
-    private SpriteRenderer mySpriteRenderer;
-
-    // animation variables
-    private Animator animator;
-
-    // reference to player sprite
-    private Sprite playerSprite;
-
-    // reference to character selector to set playerSprite
-    private CharacterSelector characterSelector;
-
-    // reference to health bar UI element
-    public Image healthBar;
-
-    // reference to stamina bar UI element
-    public Image staminaBar;
-
-    // if game is paused
-    public PauseMenu pauseMenu;
-
+    // attack variables
+    public float knockbackDistance = 1f;
+    public float attackCooldown = 1.0f;
+    private bool canBeKnockedBack = true;
+    public float knockbackCooldown = 0.5f;
+    public bool canAttack = true;
 
 
     private void Start()
     {
+        // get attack box collider
+        attackArea = GetComponent<BoxCollider2D>();
+
         // get animator
         animator = GetComponent<Animator>();
 
@@ -118,26 +117,31 @@ public class PlayerManager : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        // movement
         if (!pauseMenu.IsPaused())
         {
             HandleMovement();
         }
 
-        if (Input.GetKeyDown(KeyCode.F))
+        // attack
+        if (Input.GetMouseButtonDown(0) && canAttack)
         {
-            TakeDamage(5);
+            StartCoroutine(Attack());
         }
 
+        // jump
         if (Input.GetKeyDown(KeyCode.Space) && !isJumping)
         {
             Jump();
         }
 
+        // audio stuff
         if (isMoving && audioManager.CanPlayStep())
         {
             audioManager.PlayFootstep(isRunning, isOnGrass, transform);
         }
 
+        // health regen
         if (health < maxHealth)
         {
             RegenerateHealth();
@@ -214,17 +218,25 @@ public class PlayerManager : MonoBehaviour
         // save start position
         Vector2 startJumpPosition = new Vector2(transform.position.x, transform.position.y);
 
+        // save horizontal movement data
+        Vector3 savedMoveDirection = moveDirection;
+        float savedSpeed = currentSpeed;
+        
         // define the peak of the jump
-        Vector2 peakPosition = new Vector2(transform.position.x, transform.position.y + 2);
+        Vector2 peakPosition = new Vector2(transform.position.x, transform.position.y + jumpPower);
 
         // define jump times
         float jumpTime = 0.2f;
         float elapsedTime = 0;
 
+        float horizontalMultiplier = 2.2f;
+
         while (elapsedTime < jumpTime)
         {
             // lerp the player's position from start to final position based on elapsed time
-            transform.position = Vector3.Lerp(startJumpPosition, peakPosition, (elapsedTime / jumpTime));
+            transform.position = new Vector3(startJumpPosition.x + (savedMoveDirection.x * savedSpeed * elapsedTime * horizontalMultiplier),
+                                          Mathf.Lerp(startJumpPosition.y, peakPosition.y, (elapsedTime / jumpTime)),
+                                          transform.position.z);
 
             // increase elapsed time by the time passed in this frame
             elapsedTime += Time.deltaTime;
@@ -239,7 +251,9 @@ public class PlayerManager : MonoBehaviour
         while (elapsedTime < jumpTime)
         {
             // lerp the player's position from peak position back to start position
-            transform.position = Vector3.Lerp(peakPosition, startJumpPosition, (elapsedTime / jumpTime));
+            transform.position = new Vector3(startJumpPosition.x + (savedMoveDirection.x * savedSpeed * (elapsedTime + jumpTime) * horizontalMultiplier),
+                                          Mathf.Lerp(peakPosition.y, startJumpPosition.y, (elapsedTime / jumpTime)),
+                                          transform.position.z);
 
             // increase elapsed time by the time passed in this frame
             elapsedTime += Time.deltaTime;
@@ -248,7 +262,9 @@ public class PlayerManager : MonoBehaviour
         }
 
         // move player back to start position
-        transform.position = startJumpPosition;
+        transform.position = new Vector3(startJumpPosition.x + (savedMoveDirection.x * savedSpeed * 2 * jumpTime * horizontalMultiplier),
+                                      startJumpPosition.y,
+                                      transform.position.z);
 
         isJumping = false;
     }
@@ -258,7 +274,44 @@ public class PlayerManager : MonoBehaviour
         return transform.position;
     }
 
-    public void TakeDamage(float damage)
+    private IEnumerator Attack()
+    {
+        // enable the attack area
+        attackObject.SetActive(true);
+        canAttack = false;
+
+        canBeKnockedBack = false;
+
+        // check for any enemies within attack area
+        Collider2D[] hitEnemies = Physics2D.OverlapBoxAll(attackArea.bounds.center, attackArea.bounds.size, 0f);
+
+        // iterate through all hit enemies and apply damage
+        foreach (Collider2D enemyCollider in hitEnemies)
+        {
+            if (enemyCollider.CompareTag("Enemy"))
+            {
+                // get enemy script to apply damage
+                Enemy enemy = enemyCollider.GetComponent<Enemy>();
+
+                if (enemy != null)
+                {
+                    enemy.TakeDamage();
+                }
+            }
+        }
+
+
+        // wait for 0.2 seconds
+        yield return new WaitForSeconds(0.2f);
+
+        // Re-enable knockback after attacking
+        canBeKnockedBack = true;
+
+        canAttack = true;
+        attackObject.SetActive(false);
+    }
+
+    public void TakeDamage(float damage, Vector2 enemyPosition)
     {
         // decrease health
         health -= damage;
@@ -268,6 +321,62 @@ public class PlayerManager : MonoBehaviour
 
         // update health bar fill based on percentage
         healthBar.fillAmount = health / maxHealth;
+
+        if (canBeKnockedBack)
+        {
+            Knockback(enemyPosition);
+        }
+    }
+
+    public void Knockback(Vector2 enemyPosition)
+    {
+      
+        if (EnemyOnRight(enemyPosition))
+        {
+            StartCoroutine(KnockbackRoutine(-2));
+            
+        } else
+        {
+            StartCoroutine(KnockbackRoutine(2));
+        }
+    }
+
+    private IEnumerator KnockbackRoutine(float knockbackDistance)
+    {
+        // knockback duration
+        float duration = 0.1f;
+        float elapsedTime = 0;
+        Vector2 originalPosition = transform.position;
+        Vector2 targetPosition = new Vector3(transform.position.x + knockbackDistance, transform.position.y);
+
+        // wait until knockback duration is over
+        while (elapsedTime < duration)
+        {
+            // interpolate from original pos to end pos over time
+            transform.position = Vector2.Lerp(originalPosition, targetPosition, (elapsedTime / duration));
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        transform.position = targetPosition; // Ensure final position is exact
+
+    }
+
+    private IEnumerator KnockbackCooldown()
+    {
+        canBeKnockedBack = false;
+        yield return new WaitForSeconds(knockbackCooldown);
+        canBeKnockedBack = true;
+    }
+
+    public bool EnemyOnRight(Vector2 enemyPosition)
+    {
+        return enemyPosition.x > transform.position.x;
+    }
+
+    public float GetDamage()
+    {
+        return attack;
     }
 
     // lower stamina while sprinting

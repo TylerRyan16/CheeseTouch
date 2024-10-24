@@ -872,7 +872,7 @@ MonoBehaviour:
   gregStats:
     health: 100
     speed: 5
-    attack: 5
+    attack: 50
     stamina: 100
   rodrickStats:
     health: 125
