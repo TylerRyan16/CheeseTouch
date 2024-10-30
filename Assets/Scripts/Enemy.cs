@@ -1,6 +1,6 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using TMPro;
 
 public class Enemy : MonoBehaviour
 {
@@ -9,39 +9,49 @@ public class Enemy : MonoBehaviour
     private PlayerManager playerManager;
     private SpriteRenderer spriteRenderer;
     private Rigidbody2D rb;
+    private Knockback knockbackScript;
+    private Attack attackScript;
+    private EnemySpawner enemySpawner;
+    public GameObject textSpawnArea;
+    private ScoreManager scoreManager;
+    private bool scoreAdded = false;
 
     // movement
-    public float moveSpeed = 10f;
+    public float moveSpeed = 50f;
     public bool canMove = true;
 
     // health
     public float currentHealth;
-    public float maxHealth = 100f;
+    private float maxHealth = 30f;
+    private bool isInvincible = false;
+    public float invincibilityDuration = 0.2f;
 
     // attack
-    public float attackDamage = 10f;
-    public float attackDelay = 0.5f;
-    public float knockbackDistance = 1f;
+    public float attackDamage = 25f;
+    public float attackDelay = 0.65f;
     public float attackCooldown = 0.5f;
-    private bool canAttack = true;
     private bool isCollidingWithPlayer = false;
-
+    private Coroutine attackCoroutine;
 
     private void Start()
     {
-        // set current health to max
-        currentHealth = maxHealth;
-
-        rb = GetComponent<Rigidbody2D>();
-
-
         // initialize references
-        player = GameObject.FindWithTag("Player");  
+        scoreManager = FindObjectOfType<ScoreManager>();
+        knockbackScript = GetComponent<Knockback>();
+        attackScript = GetComponent<Attack>();
+        enemySpawner = FindObjectOfType<EnemySpawner>();
+        rb = GetComponent<Rigidbody2D>();
+       
+        player = GameObject.FindWithTag("Player");
         spriteRenderer = GetComponent<SpriteRenderer>();
         playerManager = player.GetComponent<PlayerManager>();
+
+        // dynamically calc health based on how many enemies spawned
+        int enemiesSpawned = enemySpawner.GetEnemiesSpawned();
+        maxHealth = 100 + (enemiesSpawned / 7) * 12;
+        currentHealth = maxHealth;
     }
 
-    // Update is called once per frame
     void Update()
     {
         if (player != null && canMove)
@@ -53,20 +63,14 @@ public class Enemy : MonoBehaviour
 
     public void MoveTowardsPlayer()
     {
-        // Move towards the player
         Vector2 playerPosition = playerManager.GetPlayerLocation();
         Vector2 newPosition = Vector2.MoveTowards(rb.position, playerPosition, moveSpeed * Time.deltaTime);
-
-        // Apply movement using Rigidbody2D's MovePosition
         rb.MovePosition(newPosition);
     }
 
     public void FlipSprite()
     {
-        Vector2 playerPosition = GetPlayerPosition();
-
-
-        if (transform.position.x < playerPosition.x)
+        if (transform.position.x < player.transform.position.x)
         {
             spriteRenderer.flipX = true;
         }
@@ -76,111 +80,136 @@ public class Enemy : MonoBehaviour
         }
     }
 
-
-    public Vector2 GetPlayerPosition()
-    {
-        return player.transform.position;
-    }
-
-
-
-    // COLLISION - ATTACK
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        if (collision.gameObject.tag == "Player")
+        if (collision.gameObject.CompareTag("Player"))
         {
-            Debug.Log("colliding...");
             isCollidingWithPlayer = true;
-            StartCoroutine(AttackPlayerWithDelay());
+
+            // continuous attack loop
+            if (attackCoroutine == null)
+            {
+                attackCoroutine = StartCoroutine(EnemyAttackLoop());
+            }
+
+            
         }
     }
-
-    private IEnumerator AttackPlayerWithDelay()
-    {
-        canMove = false;
-        yield return new WaitForSeconds(0.5f);
-
-        if (isCollidingWithPlayer)
-        {
-            playerManager.TakeDamage(attackDamage, transform.position);
-            Debug.Log("Damaged the player!");
-        }
-        canMove = true;
-    }
-
 
     private void OnTriggerExit2D(Collider2D collision)
     {
-        if (collision.gameObject.tag == "Player")
+        if (collision.gameObject.CompareTag("Player"))
         {
+            if (attackCoroutine != null)
+            {
+                StopCoroutine(attackCoroutine);
+                attackCoroutine = null;
+            }
             isCollidingWithPlayer = false;
         }
     }
 
+    private IEnumerator EnemyAttackLoop()
+    {
+        while (isCollidingWithPlayer)
+        {
+            if (attackScript != null && attackScript.CanAttack())
+            {
+                // disable movement during attack and perform attack
+                SetCanMove(false);
+                attackScript.EnemyAttack(playerManager, attackDamage, attackDelay, this);
+
+                // wait until the attack cooldown has finished
+                yield return new WaitForSeconds(attackDelay);
+
+                // re-enable movement after attack cooldown
+                SetCanMove(true);
+            }
+
+            // ensure we wait slightly before checking again to prevent spamming
+            yield return new WaitForSeconds(0.1f);
+        }
+    }
+
+
     public void TakeDamage()
     {
-        currentHealth = currentHealth - playerManager.GetDamage();
+        if (isInvincible) return;
 
-        StartCoroutine(TakeKnockback());
-
+        float damage = playerManager.GetDamage();
+        currentHealth -= damage;
+        knockbackScript.TakeKnockback(player.transform.position);
+        //SpawnDamageText(damage);
         DespawnIfDead();
+
+        StartCoroutine(InvincibilityCooldown());
     }
 
-    private IEnumerator TakeKnockback()
+    private IEnumerator InvincibilityCooldown()
     {
-        // disable movement for short time to act as stun
-        canMove = false;
-
-        if (IsPlayerToRight())
-        {
-            yield return StartCoroutine(KnockbackRoutine(-knockbackDistance));
-        }
-        else
-        {
-            yield return StartCoroutine(KnockbackRoutine(knockbackDistance));
-        }
-
-        // wait 0.3s to act as stun
-        yield return new WaitForSeconds(0.4f);
-
-        // allow movement again
-        canMove = true;
+        isInvincible = true;
+        yield return new WaitForSeconds(invincibilityDuration);
+        isInvincible = false;
     }
 
-    private IEnumerator KnockbackRoutine(float knockbackDistance)
-    {
-        float duration = 0.1f;
-        float elapsedTime = 0;
-        Vector2 originalpos = transform.position;
-        Vector2 targetPos = new Vector2(transform.position.x + knockbackDistance, transform.position.y);
-
-        while (elapsedTime < duration)
-        {
-            transform.position = Vector2.Lerp(originalpos, targetPos, (elapsedTime / duration));
-            elapsedTime += Time.deltaTime;
-            yield return null;
-        }
-
-    }
-
-    // DESPAWNING
     public void DespawnIfDead()
     {
         if (currentHealth <= 0)
         {
+            enemySpawner.LowerCurrentEnemies();
             Destroy(gameObject);
+            if (scoreAdded == false)
+            {
+                scoreManager.AddScore(10);
+                scoreAdded = true;
+            }
+        } 
+
+    }
+
+    public bool IsCollidingWithPlayer()
+    {
+        return isCollidingWithPlayer;
+    }
+
+    public void SetCanMove(bool canMove)
+    {
+        this.canMove = canMove;
+    }
+
+    private void SpawnDamageText(float damage)
+    {
+        // Find the TextMeshPro component within the damageTextPrefab (already part of the enemy prefab)
+        TextMeshProUGUI textMesh = textSpawnArea.GetComponentInChildren<TextMeshProUGUI>();
+
+        if (textMesh != null)
+        {
+            // Randomize the text position within the spawn area bounds
+            Bounds spawnBounds = textSpawnArea.GetComponent<Renderer>().bounds;
+            Vector3 randomPosition = new Vector3(
+                Random.Range(spawnBounds.min.x, spawnBounds.max.x),
+                Random.Range(spawnBounds.min.y, spawnBounds.max.y),
+                spawnBounds.center.z
+            );
+
+            // Set the text position, text value, and activate the object
+            textMesh.transform.position = randomPosition;
+            textMesh.text = damage.ToString();
+            textMesh.gameObject.SetActive(true);
+
+            // Start coroutine to deactivate after a delay
+            StartCoroutine(DeactivateDamageText(textMesh));
         }
         else
         {
-            return;
+            Debug.LogError("TextMeshPro component not found in the textSpawnArea.");
         }
-
     }
 
-    // GETTERS
-    private bool IsPlayerToRight()
+    // Coroutine to deactivate the damage text after 0.5 seconds
+    private IEnumerator DeactivateDamageText(TextMeshProUGUI textMesh)
     {
-        return player.transform.position.x > transform.position.x;
+        yield return new WaitForSeconds(0.5f);
+        textMesh.gameObject.SetActive(false);
     }
-
 }

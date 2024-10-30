@@ -6,6 +6,19 @@ using UnityEngine.UI;
 
 public class PlayerManager : MonoBehaviour
 {
+    // map bounds top & bottom
+    const float LEFT_X_VALUE = -75.0f;
+    const float RIGHT_X_VALUE = 45.0f;
+    const float TOP_Y_VALUE = -1.15f;
+    const float BOT_Y_VALUE = -43.0f;
+
+    // animation states
+    private string currentState;
+    const string PLAYER_IDLE = "GregIdle";
+    const string PLAYER_WALK = "GregWalk";
+    const string PLAYER_RUN = "GregRun";
+    const string PLAYER_ATTACK = "GregPunch";
+
 
     // references
     private SpriteRenderer mySpriteRenderer;
@@ -16,8 +29,8 @@ public class PlayerManager : MonoBehaviour
     public Image staminaBar;
     public PauseMenu pauseMenu;
     public AudioManager audioManager;
-    public GameObject attackObject;
-    private BoxCollider2D attackArea;
+    private Attack attackScript;
+    private Knockback knockbackScript;
 
     // player stats
     public float health;
@@ -25,7 +38,8 @@ public class PlayerManager : MonoBehaviour
     public float attack;
     public float stamina;
 
-    // some sprint variables
+    // some movement variables
+    private Vector3 moveDirection;
     public float accelerationTime = 0.2f;
     private float currentSpeed;
     private float accelerationVelocity = 0.0f;
@@ -46,31 +60,16 @@ public class PlayerManager : MonoBehaviour
     public float jumpPower = 2f;
     public float smoothSpeed = 2f;
 
-
-    // what direction we are facing
-    private Vector3 moveDirection;
-
-    // audio
+    // audio / animation identifiers
     public bool isOnGrass = true;
     private bool isRunning = false;
     private bool isMoving = false;
 
-    // map bounds top & bottom
-    private float topYValue = -1.15f;
-    private float botYValue = -43.0f;
-
-    // attack variables
-    public float knockbackDistance = 1f;
-    public float attackCooldown = 1.0f;
-    private bool canBeKnockedBack = true;
-    public float knockbackCooldown = 0.5f;
-    public bool canAttack = true;
-
-
     private void Start()
     {
-        // get attack box collider
-        attackArea = GetComponent<BoxCollider2D>();
+        // get script references
+        attackScript = GetComponent<Attack>();
+        knockbackScript = GetComponent<Knockback>();
 
         // get animator
         animator = GetComponent<Animator>();
@@ -85,32 +84,12 @@ public class PlayerManager : MonoBehaviour
         mySpriteRenderer = GetComponent<SpriteRenderer>();
 
         if (characterSelector != null)
-        { 
-            // get selected player sprite
-            playerSprite = characterSelector.GetCurrentCharacter();
-            // get selected character stats
-            var characterStats = characterSelector.GetCurrentStats();
-
-            // apply stats to player
-            health = characterStats.health;
-            speed = characterStats.speed;
-            attack = characterStats.attack;
-            stamina = characterStats.stamina;
-            maxHealth = characterStats.health;
-            maxStamina = characterStats.stamina;
-
-            // apply selected sprite to player
-            mySpriteRenderer.sprite = playerSprite;
+        {
+            SetPlayerStats();
         }
         else
         {
-            health = 100f;
-            speed = 5f;
-            attack = 5f;
-            stamina = 100f;
-            maxHealth = 100f;
-            maxStamina = 100f;
-            Debug.LogError("CharacterSelector not found in the scene. Supplementing default player stats.");
+            FillDefaultStats();
         }
     }
 
@@ -124,9 +103,11 @@ public class PlayerManager : MonoBehaviour
         }
 
         // attack
-        if (Input.GetMouseButtonDown(0) && canAttack)
+        if (Input.GetMouseButtonDown(0) && attackScript.CanAttack())
         {
-            StartCoroutine(Attack());
+            
+            ChangeAnimationState(PLAYER_ATTACK);
+            attackScript.PlayerAttack();
         }
 
         // jump
@@ -144,7 +125,7 @@ public class PlayerManager : MonoBehaviour
         // health regen
         if (health < maxHealth)
         {
-            RegenerateHealth();
+            //RegenerateHealth();
         }
     }
 
@@ -158,53 +139,70 @@ public class PlayerManager : MonoBehaviour
             targetSpeed = speed * sprintMultiplier;
             isRunning = true;
             DecreaseStamina();
-            // trigger running animation
-            animator.SetBool("isRunning", isRunning);
-        } else
+
+        } 
+        else
         {
+            isRunning = false;
+
             if (stamina < maxStamina)
             {
-                isRunning = false;
                 RegenerateStamina();
                 // trigger walking animation
-                animator.SetBool("isRunning", isRunning);
-
             }
         }
 
-        // smoothly accelerate
+        // get current speed
         currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref accelerationVelocity, accelerationTime);
-
 
         // get move current move direction
         // move x < 0 if we are facing left, + otherwise
         float moveX = Input.GetAxisRaw("Horizontal");
-        // same with y
         float moveY = Input.GetAxisRaw("Vertical");
         moveDirection = new Vector3(moveX, moveY, 0).normalized;
 
         // set is moving
         isMoving = moveX != 0 || moveY != 0;
 
-        // play walking animation
-        animator.SetBool("isWalking", isMoving);
+        if (!attackScript.isAttacking)
+        {
+            // handle animations
+            if (!isMoving && !isRunning)
+            {
+                ChangeAnimationState(PLAYER_IDLE);
+            }
+            else if (isMoving && !isRunning)
+            {
+                ChangeAnimationState(PLAYER_WALK);
+
+            }
+            else if (isMoving && isRunning)
+            {
+                ChangeAnimationState(PLAYER_RUN);
+            }
+        }
+        
 
         // increase current player position based on move direction & speed
         transform.position += moveDirection * (currentSpeed * 2) * Time.deltaTime;
 
         // clamp player on screen (vertically for now)
         // TO DO - CLAMP HORIZONTALLY
-        float clampedY = Mathf.Clamp(transform.position.y, botYValue, topYValue);
-        transform.position = new Vector3(transform.position.x, clampedY, transform.position.z);
+        float clampedX = Mathf.Clamp(transform.position.x, -75f, 75f);
+        float clampedY = Mathf.Clamp(transform.position.y, BOT_Y_VALUE, TOP_Y_VALUE);
+        transform.position = new Vector3(clampedX, clampedY, transform.position.z);
 
         // flip sprite if we are facing left
         if (moveX < 0)
         {
             mySpriteRenderer.flipX = true;
-        } else if (moveX > 0)
+        }
+        else if (moveX > 0)
         {
             mySpriteRenderer.flipX = false;
         }
+
+
     }
 
     public void Jump()
@@ -269,48 +267,6 @@ public class PlayerManager : MonoBehaviour
         isJumping = false;
     }
 
-    public Vector3 GetPlayerLocation()
-    {
-        return transform.position;
-    }
-
-    private IEnumerator Attack()
-    {
-        // enable the attack area
-        attackObject.SetActive(true);
-        canAttack = false;
-
-        canBeKnockedBack = false;
-
-        // check for any enemies within attack area
-        Collider2D[] hitEnemies = Physics2D.OverlapBoxAll(attackArea.bounds.center, attackArea.bounds.size, 0f);
-
-        // iterate through all hit enemies and apply damage
-        foreach (Collider2D enemyCollider in hitEnemies)
-        {
-            if (enemyCollider.CompareTag("Enemy"))
-            {
-                // get enemy script to apply damage
-                Enemy enemy = enemyCollider.GetComponent<Enemy>();
-
-                if (enemy != null)
-                {
-                    enemy.TakeDamage();
-                }
-            }
-        }
-
-
-        // wait for 0.2 seconds
-        yield return new WaitForSeconds(0.2f);
-
-        // Re-enable knockback after attacking
-        canBeKnockedBack = true;
-
-        canAttack = true;
-        attackObject.SetActive(false);
-    }
-
     public void TakeDamage(float damage, Vector2 enemyPosition)
     {
         // decrease health
@@ -322,61 +278,10 @@ public class PlayerManager : MonoBehaviour
         // update health bar fill based on percentage
         healthBar.fillAmount = health / maxHealth;
 
-        if (canBeKnockedBack)
+        if (knockbackScript.CanBeKnockedBack())
         {
-            Knockback(enemyPosition);
+            knockbackScript.TakeKnockback(enemyPosition);
         }
-    }
-
-    public void Knockback(Vector2 enemyPosition)
-    {
-      
-        if (EnemyOnRight(enemyPosition))
-        {
-            StartCoroutine(KnockbackRoutine(-2));
-            
-        } else
-        {
-            StartCoroutine(KnockbackRoutine(2));
-        }
-    }
-
-    private IEnumerator KnockbackRoutine(float knockbackDistance)
-    {
-        // knockback duration
-        float duration = 0.1f;
-        float elapsedTime = 0;
-        Vector2 originalPosition = transform.position;
-        Vector2 targetPosition = new Vector3(transform.position.x + knockbackDistance, transform.position.y);
-
-        // wait until knockback duration is over
-        while (elapsedTime < duration)
-        {
-            // interpolate from original pos to end pos over time
-            transform.position = Vector2.Lerp(originalPosition, targetPosition, (elapsedTime / duration));
-            elapsedTime += Time.deltaTime;
-            yield return null;
-        }
-
-        transform.position = targetPosition; // Ensure final position is exact
-
-    }
-
-    private IEnumerator KnockbackCooldown()
-    {
-        canBeKnockedBack = false;
-        yield return new WaitForSeconds(knockbackCooldown);
-        canBeKnockedBack = true;
-    }
-
-    public bool EnemyOnRight(Vector2 enemyPosition)
-    {
-        return enemyPosition.x > transform.position.x;
-    }
-
-    public float GetDamage()
-    {
-        return attack;
     }
 
     // lower stamina while sprinting
@@ -407,4 +312,63 @@ public class PlayerManager : MonoBehaviour
         // update health bar
         healthBar.fillAmount = health / maxHealth;
     }
+
+
+    public bool EnemyOnRight(Vector2 enemyPosition)
+    {
+        return enemyPosition.x > transform.position.x;
+    }
+
+    public float GetDamage()
+    {
+        return attack;
+    }
+
+    public Vector3 GetPlayerLocation()
+    {
+        return transform.position;
+    }
+
+
+    public void SetPlayerStats()
+    {
+        // get selected player sprite
+        playerSprite = characterSelector.GetCurrentCharacter();
+        // get selected character stats
+        var characterStats = characterSelector.GetCurrentStats();
+
+        // apply stats to player
+        health = characterStats.health;
+        speed = characterStats.speed;
+        attack = characterStats.attack;
+        stamina = characterStats.stamina;
+        maxHealth = characterStats.health;
+        maxStamina = characterStats.stamina;
+
+        // apply selected sprite to player
+        mySpriteRenderer.sprite = playerSprite;
+    }
+
+
+    private void FillDefaultStats()
+    {
+        health = 100f;
+        speed = 5f;
+        attack = 25f;
+        stamina = 100f;
+        maxHealth = 100f;
+        maxStamina = 100f;
+        Debug.LogError("CharacterSelector not found in the scene. Supplementing default player stats.");
+    }
+
+    void ChangeAnimationState(string newState)
+    {
+        if (currentState == newState) return;
+
+        animator.Play(newState);
+
+        currentState = newState;
+    }
 }
+
+

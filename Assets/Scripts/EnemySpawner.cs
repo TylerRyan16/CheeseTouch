@@ -11,7 +11,11 @@ public class EnemySpawner : MonoBehaviour
     public int maxEnemies = 10;
 
     // current amount of enemies alive
-    public int currentEnemies;
+    private int currentEnemies = 0;
+    private int enemiesSpawned = 0;
+
+    // flag to check if the first zombie has spawned yet (win condition)
+    private bool firstSpawned = false;
 
     // Reference to the BoxCollider2D for the spawn area
     private BoxCollider2D spawnArea;
@@ -24,25 +28,34 @@ public class EnemySpawner : MonoBehaviour
 
         StartCoroutine(SpawnEnemies());
     }
+    private void Update()
+    {
+        CheckWinCondition();
+    }
 
     private IEnumerator SpawnEnemies()
     {
-        while (currentEnemies < maxEnemies)
+
+        while (enemiesSpawned < maxEnemies)
         {
             SpawnEnemy();
 
-            // wait for a random time between 4 and 8 seconds
-            float spawnInterval = Random.Range(3f, 10f);
+            // wait for a random time between 3 and 8 seconds
+            float spawnInterval = Random.Range(2f, 6f);
             yield return new WaitForSeconds(spawnInterval);
         }
     }
 
     void SpawnEnemy()
     {
-        // make sure enemy count is valid
-        if (currentEnemies >= maxEnemies)
+        if (enemiesSpawned >= maxEnemies)
         {
             return;
+        }
+        // trigger first spawned zombie
+        if (!firstSpawned)
+        {
+            firstSpawned = true;
         }
 
         // calculate the spawn area bounds based on the square (BoxCollider2D)
@@ -51,6 +64,7 @@ public class EnemySpawner : MonoBehaviour
         // instantiate the enemy at the random position
         Instantiate(enemyPrefab, spawnPosition, Quaternion.identity);
 
+        enemiesSpawned++;
         currentEnemies++;
     }
 
@@ -66,5 +80,28 @@ public class EnemySpawner : MonoBehaviour
         // return random position
         return new Vector2(randomX, randomY);
 
+    }
+
+    public int GetCurrentEnemies()
+    {
+        return currentEnemies;
+    }
+
+    public int GetEnemiesSpawned()
+    {
+        return enemiesSpawned;
+    }
+
+    public void LowerCurrentEnemies()
+    {
+        currentEnemies = Mathf.Max(0, currentEnemies - 1); 
+    }
+
+    public void CheckWinCondition()
+    {
+        if (enemiesSpawned == maxEnemies && firstSpawned && currentEnemies == 0)
+        {
+            Debug.Log("You win!");
+        }
     }
 }

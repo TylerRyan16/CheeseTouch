@@ -4,9 +4,13 @@ using UnityEngine;
 
 public class AudioManager : MonoBehaviour
 {
+    public AudioSource mainSource;
+
     // reference to audio source component
     public AudioClip[] pavementSounds;
     public AudioClip[] grassSounds;
+    public AudioClip whooshSound;
+    public AudioClip punchSound;
 
     // step variables
     private float stepTimer = 0f;
@@ -15,6 +19,14 @@ public class AudioManager : MonoBehaviour
     // fade out sound length
     private float fadeDuration = 0.3f;
 
+    private void Awake()
+    {
+        mainSource = GetComponent<AudioSource>();
+        if (mainSource == null)
+        {
+            mainSource = gameObject.AddComponent<AudioSource>();
+        }
+    }
     // play random footstep sound
     public void PlayFootstep(bool isRunning, bool isOnGrass, Transform playerTransform)
     {
@@ -81,4 +93,30 @@ public class AudioManager : MonoBehaviour
         source.Stop();
         Destroy(footstepObject);
     }
+
+    public void PlayWhooshSound()
+    {
+        if (mainSource != null && whooshSound != null)
+        {
+            mainSource.PlayOneShot(whooshSound);
+        }
+        else
+        {
+            Debug.LogError("main source or whoosh sound clip missing");
+        }
+    }
+
+    public void PlayPunchSound()
+    {
+        if (mainSource != null && punchSound != null)
+        {
+            mainSource.PlayOneShot(punchSound);
+        }
+        else
+        {
+            Debug.LogError("main source or punch sound clip missing");
+        }
+    }
+
+
 }
