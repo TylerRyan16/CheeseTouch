@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using TMPro;
+using UnityEngine.SceneManagement;
 
 public class Enemy : MonoBehaviour
 {
@@ -12,9 +13,11 @@ public class Enemy : MonoBehaviour
     private Knockback knockbackScript;
     private Attack attackScript;
     private EnemySpawner enemySpawner;
+    private Level2Spawner levelTwoSpawner;
     public GameObject textSpawnArea;
     private ScoreManager scoreManager;
     private bool scoreAdded = false;
+    private AudioManager audioManager;
 
     // movement
     public float moveSpeed = 50f;
@@ -22,7 +25,7 @@ public class Enemy : MonoBehaviour
 
     // health
     public float currentHealth;
-    private float maxHealth = 30f;
+    private float maxHealth = 25f;
     private bool isInvincible = false;
     public float invincibilityDuration = 0.2f;
 
@@ -35,20 +38,45 @@ public class Enemy : MonoBehaviour
 
     private void Start()
     {
+        audioManager = FindObjectOfType<AudioManager>();
+        InitializeSpawnerAndHealth();
+
+
         // initialize references
         scoreManager = FindObjectOfType<ScoreManager>();
         knockbackScript = GetComponent<Knockback>();
         attackScript = GetComponent<Attack>();
-        enemySpawner = FindObjectOfType<EnemySpawner>();
         rb = GetComponent<Rigidbody2D>();
        
         player = GameObject.FindWithTag("Player");
         spriteRenderer = GetComponent<SpriteRenderer>();
         playerManager = player.GetComponent<PlayerManager>();
+    }
 
-        // dynamically calc health based on how many enemies spawned
-        int enemiesSpawned = enemySpawner.GetEnemiesSpawned();
-        maxHealth = 100 + (enemiesSpawned / 7) * 12;
+    private void InitializeSpawnerAndHealth()
+    {
+        // Get the current scene
+        string currentSceneName = SceneManager.GetActiveScene().name;
+
+        if (currentSceneName == "Basketball_Court")
+        {
+            enemySpawner = FindObjectOfType<EnemySpawner>();
+            if (enemySpawner != null)
+            {
+                int enemiesSpawned = enemySpawner.GetEnemiesSpawned();
+                maxHealth = 25 + (enemiesSpawned / 7) * 8;
+            }
+        }
+        else if (currentSceneName == "Level2")
+        {
+            levelTwoSpawner = FindObjectOfType<Level2Spawner>();
+            if (levelTwoSpawner != null)
+            {
+                int enemiesSpawned = levelTwoSpawner.GetEnemiesSpawned();
+                maxHealth = 25 + (enemiesSpawned / 7) * 8;
+            }
+        }
+
         currentHealth = maxHealth;
     }
 
@@ -139,7 +167,12 @@ public class Enemy : MonoBehaviour
         float damage = playerManager.GetDamage();
         currentHealth -= damage;
         knockbackScript.TakeKnockback(player.transform.position);
-        //SpawnDamageText(damage);
+
+        if (currentHealth > 0)
+        {
+            audioManager.PlayZombieHurtSound();
+        }
+
         DespawnIfDead();
 
         StartCoroutine(InvincibilityCooldown());
@@ -156,15 +189,35 @@ public class Enemy : MonoBehaviour
     {
         if (currentHealth <= 0)
         {
-            enemySpawner.LowerCurrentEnemies();
+            // Check which scene is active and call the appropriate spawner's LowerCurrentEnemies method
+            if (SceneManager.GetActiveScene().name == "Level2")
+            {
+                // Use Level2Spawner if we are in Level 2
+                Level2Spawner levelTwoSpawner = FindObjectOfType<Level2Spawner>();
+                if (levelTwoSpawner != null)
+                {
+                    levelTwoSpawner.LowerCurrentEnemies();
+                }
+            }
+            else
+            {
+                // Use EnemySpawner for other scenes
+                if (enemySpawner != null)
+                {
+                    enemySpawner.LowerCurrentEnemies();
+                }
+            }
+
+            // Destroy enemy game object and update score
             Destroy(gameObject);
-            if (scoreAdded == false)
+            audioManager.PlayZombieDeathSound();
+
+            if (!scoreAdded)
             {
                 scoreManager.AddScore(10);
                 scoreAdded = true;
             }
-        } 
-
+        }
     }
 
     public bool IsCollidingWithPlayer()

@@ -1,6 +1,6 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class IntroCutscene : MonoBehaviour
 {
@@ -9,6 +9,7 @@ public class IntroCutscene : MonoBehaviour
     public GameObject greg;
     public GameObject darren;
     public Animator gregAnimator;
+    public GameObject zombiePrefab;
 
     // GREG MOVING RIGHT & ZOOM OUT TO BASKETBALL COURT
     private Vector2 gregStartPos;
@@ -73,7 +74,7 @@ public class IntroCutscene : MonoBehaviour
             cameraStartPos = mainCamera.transform.position;
             cameraEndPos = cameraStartPos + new Vector2(55f, 0f);
             cameraSizeStart = mainCamera.orthographicSize;
-            cameraSizeEnd = cameraSizeStart + 5f;
+            cameraSizeEnd = cameraSizeStart + 3f;
         }
         else
         {
@@ -142,6 +143,50 @@ public class IntroCutscene : MonoBehaviour
         if (t >= 1f)
         {
             moveDarrenStarted = false; // End this step
+
+            // Get the sprite from the zombiePrefab's SpriteRenderer
+            SpriteRenderer zombieSpriteRenderer = zombiePrefab.GetComponent<SpriteRenderer>();
+            SpriteRenderer darrenSpriteRenderer = darren.GetComponent<SpriteRenderer>();
+
+            if (zombieSpriteRenderer != null && darrenSpriteRenderer != null)
+            {
+                darrenSpriteRenderer.sprite = zombieSpriteRenderer.sprite; // Set Darren's sprite to the zombie sprite
+                darren.transform.localScale *= 0.5f;
+            }
+            else
+            {
+                Debug.LogError("SpriteRenderer not found on zombiePrefab or Darren.");
+            }
+
+            // Start coroutine to move Darren back after 3 seconds
+            StartCoroutine(ReturnDarrenToStart());
         }
     }
+
+    private IEnumerator ReturnDarrenToStart()
+    {
+        
+        // Wait 3 seconds before moving Darren back
+        yield return new WaitForSeconds(3f);
+
+        SpriteRenderer darrenSpriteRenderer = darren.GetComponent<SpriteRenderer>();
+        darrenSpriteRenderer.flipX = true;
+
+        float returnDuration = 2f; // Duration for Darren to move back
+        float returnElapsedTime = 0f;
+
+        while (returnElapsedTime < returnDuration)
+        {
+            returnElapsedTime += Time.deltaTime;
+            float t = returnElapsedTime / returnDuration;
+            darren.transform.position = Vector2.Lerp(darrenEndPos, darrenStartPos, t);
+            yield return null;
+        }
+
+        // Ensure Darren is exactly at the start position after the movement
+        darren.transform.position = darrenStartPos;
+
+        SceneManager.LoadScene("CharacterSelect");
+    }
+
 }

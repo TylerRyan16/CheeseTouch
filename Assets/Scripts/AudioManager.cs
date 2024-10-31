@@ -11,6 +11,10 @@ public class AudioManager : MonoBehaviour
     public AudioClip[] grassSounds;
     public AudioClip whooshSound;
     public AudioClip punchSound;
+    public AudioClip zombieAttack;
+    public AudioClip zombieHurt;
+    public AudioClip zombieDeath;
+    public AudioClip gameOver;
 
     // step variables
     private float stepTimer = 0f;
@@ -115,6 +119,38 @@ public class AudioManager : MonoBehaviour
         else
         {
             Debug.LogError("main source or punch sound clip missing");
+        }
+    }
+
+    public void PlayZombieDeathSound()
+    {
+        if (mainSource != null && zombieDeath != null)
+        {
+            mainSource.PlayOneShot(zombieDeath);
+        }
+    }
+
+    public void PlayZombieHurtSound()
+    {
+        if (mainSource != null && zombieHurt != null)
+        {
+            mainSource.PlayOneShot(zombieHurt);
+        }
+    }
+
+    public void PlayZombieAttackSound()
+    {
+        if (mainSource != null && zombieAttack != null)
+        {
+            mainSource.PlayOneShot(zombieAttack);
+        }
+    }
+
+    public void PlayGameOverSound()
+    {
+        if (mainSource != null && gameOver != null)
+        {
+            mainSource.PlayOneShot(gameOver);
         }
     }
 

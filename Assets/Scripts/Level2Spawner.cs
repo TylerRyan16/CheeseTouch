@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class EnemySpawner : MonoBehaviour
+public class Level2Spawner : MonoBehaviour
 {
     // enemy prefab to spawn
     public GameObject enemyPrefab;
@@ -18,7 +18,11 @@ public class EnemySpawner : MonoBehaviour
     private bool firstSpawned = false;
 
     // Reference to the BoxCollider2D for the spawn area
-    private BoxCollider2D spawnArea;
+    public GameObject spawnObject1;
+    public GameObject spawnObject2;
+    private BoxCollider2D spawnArea1;
+    private BoxCollider2D spawnArea2;
+
 
     private PauseMenu pauseMenu;
 
@@ -28,9 +32,16 @@ public class EnemySpawner : MonoBehaviour
     void Start()
     {
         pauseMenu = FindObjectOfType<PauseMenu>();
+        spawnArea1 = spawnObject1.GetComponent<BoxCollider2D>();
+        spawnArea2 = spawnObject2.GetComponent<BoxCollider2D>();
+
 
         // get spawn area
-        spawnArea = GetComponent<BoxCollider2D>();
+        if (spawnArea1 == null || spawnArea2 == null)
+        {
+            Debug.LogError("Spawn areas not assigned.");
+            return;
+        }
 
         StartCoroutine(SpawnEnemies());
     }
@@ -46,8 +57,8 @@ public class EnemySpawner : MonoBehaviour
         {
             SpawnEnemy();
 
-            // wait for a random time between 3 and 4 seconds
-            float spawnInterval = Random.Range(2f, 5f);
+            // wait for a random time between 3 and 8 seconds
+            float spawnInterval = Random.Range(2f, 6f);
             yield return new WaitForSeconds(spawnInterval);
         }
     }
@@ -76,8 +87,10 @@ public class EnemySpawner : MonoBehaviour
 
     public Vector2 GetRandomPositionInSpawnArea()
     {
+        BoxCollider2D selectedSpawnArea = (Random.Range(0, 2) == 0) ? spawnArea1 : spawnArea2;
+
         // grab spawn area bounds
-        Bounds bounds = spawnArea.bounds;
+        Bounds bounds = selectedSpawnArea.bounds;
 
         // get random bounds in spawn area
         float randomX = Random.Range(bounds.min.x, bounds.max.x);

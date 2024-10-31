@@ -3,14 +3,15 @@ using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class PlayerManager : MonoBehaviour
 {
     // map bounds top & bottom
-    const float LEFT_X_VALUE = -75.0f;
-    const float RIGHT_X_VALUE = 45.0f;
-    const float TOP_Y_VALUE = -1.15f;
-    const float BOT_Y_VALUE = -43.0f;
+    private float LEFT_X_VALUE;
+    private float RIGHT_X_VALUE;
+    private float TOP_Y_VALUE;
+    private float BOT_Y_VALUE;
 
     // animation states
     private string currentState;
@@ -31,12 +32,15 @@ public class PlayerManager : MonoBehaviour
     public AudioManager audioManager;
     private Attack attackScript;
     private Knockback knockbackScript;
+    private EnemySpawner enemySpawner;
 
     // player stats
     public float health;
     public float speed;
     public float attack;
     public float stamina;
+    private float originalSpeed;
+
 
     // some movement variables
     private Vector3 moveDirection;
@@ -65,11 +69,14 @@ public class PlayerManager : MonoBehaviour
     private bool isRunning = false;
     private bool isMoving = false;
 
+    private bool levelTwoLoaded = false;
+
     private void Start()
     {
         // get script references
         attackScript = GetComponent<Attack>();
         knockbackScript = GetComponent<Knockback>();
+        enemySpawner = FindObjectOfType<EnemySpawner>();
 
         // get animator
         animator = GetComponent<Animator>();
@@ -91,21 +98,47 @@ public class PlayerManager : MonoBehaviour
         {
             FillDefaultStats();
         }
+
+        SetSceneSpecificSettings();
+
+    }
+
+    private void SetSceneSpecificSettings()
+    {
+        // Determine if current scene is Level2
+        string currentScene = SceneManager.GetActiveScene().name;
+        if (currentScene == "Level2")
+        {
+            // Double the speed for Level2
+            speed *= 1.2f;
+            originalSpeed = speed;
+
+            // Set specific boundaries for Level2
+            LEFT_X_VALUE = -60.0f;
+            RIGHT_X_VALUE = 64.0f;
+            TOP_Y_VALUE = -5.0f;
+            BOT_Y_VALUE = -31.0f;
+        }
+        else
+        {
+            // Default boundaries and speed
+            LEFT_X_VALUE = -75.0f;
+            RIGHT_X_VALUE = 45.0f;
+            TOP_Y_VALUE = -1.15f;
+            BOT_Y_VALUE = -43.0f;
+            originalSpeed = speed;
+        }
     }
 
     // Update is called once per frame
     void Update()
     {
-        // movement
-        if (!pauseMenu.IsPaused())
-        {
-            HandleMovement();
-        }
+        
 
         // attack
         if (Input.GetMouseButtonDown(0) && attackScript.CanAttack())
         {
-            
+
             ChangeAnimationState(PLAYER_ATTACK);
             attackScript.PlayerAttack();
         }
@@ -129,68 +162,63 @@ public class PlayerManager : MonoBehaviour
         }
     }
 
+    private void FixedUpdate()
+    {
+        // movement
+        if (!pauseMenu.IsPaused())
+        {
+            HandleMovement();
+        }
+    }
+
     public void HandleMovement()
     {
-        // check if sprinting, create target speed to reach
+        // Determine target speed based on sprinting or normal movement
         float targetSpeed = speed;
         if (Input.GetKey(KeyCode.LeftShift) && stamina > 0)
         {
-            // increase target speed while sprinting
-            targetSpeed = speed * sprintMultiplier;
+            targetSpeed = originalSpeed * sprintMultiplier; // Sprinting
             isRunning = true;
             DecreaseStamina();
-
-        } 
+        }
         else
         {
             isRunning = false;
-
             if (stamina < maxStamina)
             {
                 RegenerateStamina();
-                // trigger walking animation
             }
         }
 
-        // get current speed
+        // Smooth transition to target speed
         currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref accelerationVelocity, accelerationTime);
 
-        // get move current move direction
-        // move x < 0 if we are facing left, + otherwise
+        // Get movement direction
         float moveX = Input.GetAxisRaw("Horizontal");
         float moveY = Input.GetAxisRaw("Vertical");
         moveDirection = new Vector3(moveX, moveY, 0).normalized;
 
-        // set is moving
+        // Set animation based on movement
         isMoving = moveX != 0 || moveY != 0;
-
         if (!attackScript.isAttacking)
         {
-            // handle animations
-            if (!isMoving && !isRunning)
-            {
-                ChangeAnimationState(PLAYER_IDLE);
-            }
-            else if (isMoving && !isRunning)
-            {
-                ChangeAnimationState(PLAYER_WALK);
-
-            }
-            else if (isMoving && isRunning)
-            {
-                ChangeAnimationState(PLAYER_RUN);
-            }
+            if (!isMoving) ChangeAnimationState(PLAYER_IDLE);
+            else if (isRunning) ChangeAnimationState(PLAYER_RUN);
+            else ChangeAnimationState(PLAYER_WALK);
         }
-        
 
-        // increase current player position based on move direction & speed
+        // Apply movement and clamp within boundaries
         transform.position += moveDirection * (currentSpeed * 2) * Time.deltaTime;
-
-        // clamp player on screen (vertically for now)
-        // TO DO - CLAMP HORIZONTALLY
-        float clampedX = Mathf.Clamp(transform.position.x, -75f, 75f);
+        float clampedX = Mathf.Clamp(transform.position.x, LEFT_X_VALUE, RIGHT_X_VALUE);
         float clampedY = Mathf.Clamp(transform.position.y, BOT_Y_VALUE, TOP_Y_VALUE);
         transform.position = new Vector3(clampedX, clampedY, transform.position.z);
+
+        // Check for scene transition near the boundary
+        if (Mathf.Abs(transform.position.x - RIGHT_X_VALUE) < 0.1f && enemySpawner.CheckWinCondition() && !levelTwoLoaded)
+        {
+            levelTwoLoaded = true;
+            SceneManager.LoadScene("Level2");
+        }
 
         // flip sprite if we are facing left
         if (moveX < 0)
@@ -201,8 +229,6 @@ public class PlayerManager : MonoBehaviour
         {
             mySpriteRenderer.flipX = false;
         }
-
-
     }
 
     public void Jump()
@@ -269,8 +295,16 @@ public class PlayerManager : MonoBehaviour
 
     public void TakeDamage(float damage, Vector2 enemyPosition)
     {
+        audioManager.PlayZombieAttackSound();
+
         // decrease health
         health -= damage;
+
+        if (health <= 0)
+        {
+            audioManager.PlayGameOverSound();
+            pauseMenu.ActivateLoseScreen();
+        }
 
         // ensure health doesnt go above max or below 0
         health = Mathf.Clamp(health, 0, maxHealth);
@@ -369,6 +403,8 @@ public class PlayerManager : MonoBehaviour
 
         currentState = newState;
     }
+
+
 }
 
 

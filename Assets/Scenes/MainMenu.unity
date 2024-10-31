@@ -283,7 +283,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 1287809338}
         m_TargetAssemblyTypeName: PauseMenu, Assembly-CSharp
-        m_MethodName: LoadCharacterSelectScreen
+        m_MethodName: LoadCutscene
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -1418,6 +1418,10 @@ MonoBehaviour:
   pauseMenuCanvas: {fileID: 0}
   settingsMenuCanvas: {fileID: 560882430}
   mainMenuCanvas: {fileID: 240830741}
+  confirmQuitCanvas: {fileID: 0}
+  confirmMainMenuCanvas: {fileID: 0}
+  youLoseScreen: {fileID: 0}
+  continueIndicator: {fileID: 0}
 --- !u!4 &1287809339
 Transform:
   m_ObjectHideFlags: 0

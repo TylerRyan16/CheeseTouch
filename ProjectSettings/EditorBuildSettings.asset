@@ -14,4 +14,10 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Basketball_Court.unity
     guid: 90c208851cec1b94094943f12d7b6526
+  - enabled: 1
+    path: Assets/Scenes/IntroCutscene.unity
+    guid: e3d891f67deba0245a4ae119bcb7c869
+  - enabled: 1
+    path: Assets/Scenes/Level2.unity
+    guid: f916fde1f77fdc34bb97dbc304ba9e4f
   m_configObjects: {}

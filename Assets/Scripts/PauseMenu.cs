@@ -6,16 +6,24 @@ using UnityEngine.SceneManagement;
 
 public class PauseMenu : MonoBehaviour
 {
-
     // reference to the pause menu canvas
     public GameObject pauseMenuCanvas;
     public GameObject settingsMenuCanvas;
     public GameObject mainMenuCanvas;
     public GameObject confirmQuitCanvas;
     public GameObject confirmMainMenuCanvas;
+    public GameObject youLoseScreen;
+    public GameObject continueIndicator;
+
+    private EnemySpawner enemySpawner;
 
     // paused or nah
     private bool isPaused = false;
+
+    private void Start()
+    {
+        enemySpawner = FindObjectOfType<EnemySpawner>();
+    }
 
     // Update is called once per frame
     void Update()
@@ -33,11 +41,11 @@ public class PauseMenu : MonoBehaviour
                     Pause();
                 }
             }
-        } else
+        } 
+        else
         {
             Debug.Log("pauseMenu and settingsMenu canvas not set");
         }
-      
         
     }
 
@@ -111,6 +119,12 @@ public class PauseMenu : MonoBehaviour
         SceneManager.LoadScene("CharacterSelect");
     }
 
+    public void LoadCutscene()
+    {
+        SceneManager.LoadScene("IntroCutscene");
+
+    }
+
     // LOAD THE MAIN MENU
     public void LoadMainMenu()
     {
@@ -127,6 +141,11 @@ public class PauseMenu : MonoBehaviour
         SceneManager.LoadScene("MainMenu");
     }
 
+    public void LoadBasketballCourt()
+    {
+        SceneManager.LoadScene("Basketball_Court");
+    }
+
     // CHECK IF GAME IS PAUSED
     public bool IsPaused()
     {
@@ -140,5 +159,14 @@ public class PauseMenu : MonoBehaviour
             Debug.Log("Exiting Game....");
             Application.Quit();
         }
+    }
+
+    public void ActivateLoseScreen()
+    {
+         pauseMenuCanvas.SetActive(false);
+         settingsMenuCanvas.SetActive(false);
+         confirmQuitCanvas.SetActive(false);
+         confirmMainMenuCanvas.SetActive(false);
+         youLoseScreen.SetActive(true);
     }
 }
