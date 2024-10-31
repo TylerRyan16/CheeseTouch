@@ -36,7 +36,7 @@ weapons that the player can use around the map. After all of this, I clamped the
 
 # Design Process: The Zombies
 ### Spawning
-Moving forward, we had basic movement and a basic level to start the foundation of our zombie spawning. We both agreed that the in first level, zombies should spawn from the right side of the map only. I set up a 2D object on the right and calculate its location and bounds
+Moving forward, we had basic movement and a basic level to start the foundation of our zombie spawning. We both agreed that in the first level, zombies should spawn from the right side of the map only. I set up a 2D object on the right and calculate its location and bounds
 and randomly spawn a zombie sprite somewhere within these bounds. We loop through the amount of zombies to spawn until they are all spawned, and now we had a working zombie spawner.   
 
 ### Movement
@@ -48,7 +48,7 @@ attached a rigid body to each zombie so that they could collide with each other.
 Obviously, a crucial aspect of zombies is their ability to hurt the player. We originally started the enemy attacking script by checking if they collide with the player and lowering the player's health based on that. This method was problematic, however, as it 
 was very difficult to win. The zombies would often crowd around the player, and with no indicator/delay in attacking, you would just die nearly instantly. To combat this, I added a few key systems:  
   
-**Enemy Attack Time**: Once enemies detect a collision with the player, the take time to "swing"  (0.5s), and then after that time, if the player is still colliing with them, they deal damage.  
+**Enemy Attack Time**: Once enemies detect a collision with the player, they take time to "swing"  (0.5s), and then after that time, if the player is still colliing with them, they deal damage.  
   
 **Invincibility Frames**: For a short period after taking damage, the player is invulnerable, preventing the player getting "ping-ponged" around the screen by multiple enemies charging attacks at the same time.  
   
@@ -91,3 +91,5 @@ Finally, if time allowed, we would have implemented a "party" system. Essentiall
 to be specially crafted to beat specific levels; for example maybe a level with tons of tanky enemies would be best beaten by Rowley, the character that does the most damage. The player would have to become familiar with the levels and decide which character they should 
 use. 
 
+# References
+Kinney, Jeff. *Diary of a Wimpy Kid. Vol. 2: Rodrick Rules*. Amulet Books, 2008. 
